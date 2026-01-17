@@ -14,7 +14,7 @@ const ChatBot = () => {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
-      text: "Hi! I'm your website assistant. I can help you find sections and content on this website. Ask me anything!",
+      text: "Hey there! I'm Doogu — your friendly AI assistant! 🤖 I can help you navigate this website, answer any questions you have, and even tell you what's happening in the news today. What would you like to know?",
       sender: 'bot',
       timestamp: new Date(),
     },
@@ -112,11 +112,62 @@ const ChatBot = () => {
       return "I can help you find content on this website! The main sections are: Hero (top), About, Skills, Projects, Contact, and Study (bottom). You can use the navigation menu at the top to jump to any section. What specifically are you looking for?";
     }
 
-    return "I'm here to help you navigate the website! The main sections are: Hero, About, Skills, Projects, Contact, and Study. You can ask me about specific content like 'Where is Piyush Garg video?' or 'Where is HackerRank?'. What would you like to know?";
+    // News queries (fallback if API fails)
+    if (lowerQuery.includes('news') || lowerQuery.includes('headlines') || lowerQuery.includes('today')) {
+      return "I'd love to share the latest news! However, I need a News API key to fetch current headlines. You can get a free API key from newsapi.org. For now, I can help you with website questions or answer any other questions you have!";
+    }
+
+    // General questions fallback
+    return "Hi! I'm Doogu, your friendly AI assistant! I can help you with:\n\n• Finding content on this website\n• Answering general questions\n• Sharing today's news (if configured)\n• And much more!\n\nWhat would you like to know?";
+  };
+
+  // Fetch today's news
+  const fetchTodayNews = async (): Promise<string> => {
+    const newsApiKey = import.meta.env.VITE_NEWS_API_KEY;
+    
+    if (!newsApiKey) {
+      return "I'd love to share the latest news, but I need a News API key to fetch current headlines. You can get a free API key from newsapi.org. For now, I can still help you with website questions and general topics!";
+    }
+
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const response = await fetch(
+        `https://newsapi.org/v2/top-headlines?country=us&pageSize=5&apiKey=${newsApiKey}`
+      );
+
+      if (!response.ok) {
+        throw new Error('News API request failed');
+      }
+
+      const data = await response.json();
+      
+      if (data.articles && data.articles.length > 0) {
+        const headlines = data.articles
+          .slice(0, 5)
+          .map((article: any, index: number) => `${index + 1}. ${article.title}`)
+          .join('\n');
+        
+        return `Here are today's top headlines:\n\n${headlines}\n\nWould you like to know more about any specific news topic?`;
+      } else {
+        return "I couldn't fetch the latest news right now. But I'm still here to help with any other questions you have!";
+      }
+    } catch (error) {
+      console.error('News API error:', error);
+      return "I'm having trouble fetching the latest news right now. But I can still help you with website questions, general knowledge, or anything else you'd like to know!";
+    }
   };
 
   // Call Gemini API or use rule-based fallback
   const getAIResponse = async (query: string): Promise<string> => {
+    const lowerQuery = query.toLowerCase();
+    
+    // Check if user is asking for news
+    if (lowerQuery.includes('news') || lowerQuery.includes('headlines') || 
+        lowerQuery.includes('today\'s news') || lowerQuery.includes('latest news') ||
+        lowerQuery.includes('what\'s happening') || lowerQuery.includes('current events')) {
+      return await fetchTodayNews();
+    }
+
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
     
     if (!apiKey) {
@@ -125,21 +176,32 @@ const ChatBot = () => {
     }
 
     try {
-      const systemPrompt = `You are a helpful assistant for a personal portfolio website. Help users find content and sections on the website.
+      const systemPrompt = `You are Doogu, a friendly and helpful AI assistant. You can answer questions about:
 
-Website Structure:
-- Hero Section: Main landing area at the top
-- About Section: Developer information and stats
-- Skills Section: Tech stack (React, TypeScript, Node.js, Python, MongoDB, etc.)
-- Projects Section: Featured projects (E-Commerce Platform, AI Dashboard, Social Media App)
-- Contact Section: Contact form and social links
-- Study Section: Learning resources with 4 categories:
-  * Text: w3schools, interviewbit, sanfoundry
-  * Images: System design diagrams
-  * Videos: YouTube channels including Piyush Garg (@PiyushGargDev), Hitesh Choudhary, Telusko, Selenium Express, Codebasics, Javatechie
-  * Practice: HackerRank, HackerEarth, LeetCode, CodeChef
+1. Website Navigation - Help users find content on this personal portfolio website:
+   - Hero Section: Main landing area at the top
+   - About Section: Developer information and stats
+   - Skills Section: Tech stack (React, TypeScript, Node.js, Python, MongoDB, etc.)
+   - Projects Section: Featured projects (E-Commerce Platform, AI Dashboard, Social Media App)
+   - Contact Section: Contact form and social links
+   - Study Section: Learning resources with 4 categories:
+     * Text: w3schools, interviewbit, sanfoundry
+     * Images: System design diagrams
+     * Videos: YouTube channels including Piyush Garg (@PiyushGargDev), Hitesh Choudhary, Telusko, Selenium Express, Codebasics, Javatechie
+     * Practice: HackerRank, HackerEarth, LeetCode, CodeChef
 
-Provide clear, concise directions on how to find the requested content. Be friendly and helpful.`;
+2. General Questions - Answer any questions the user has about:
+   - General knowledge
+   - Technology
+   - Programming
+   - Science
+   - History
+   - Current events
+   - And anything else!
+
+3. News - When asked about news, fetch and share today's headlines.
+
+Be friendly, conversational, and helpful. If you don't know something, admit it honestly. Always be enthusiastic and engaging!`;
 
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`,
@@ -153,7 +215,7 @@ Provide clear, concise directions on how to find the requested content. Be frien
               {
                 parts: [
                   {
-                    text: `${systemPrompt}\n\nUser question: ${query}\n\nAssistant:`,
+                    text: `${systemPrompt}\n\nUser question: ${query}\n\nDoogu:`,
                   },
                 ],
               },
@@ -245,8 +307,8 @@ Provide clear, concise directions on how to find the requested content. Be frien
           >
             {/* Header */}
             <div className="p-4 border-b border-border bg-secondary/50">
-              <h3 className="text-lg font-semibold text-gradient">Website Assistant</h3>
-              <p className="text-sm text-muted-foreground">Ask me about any section or content!</p>
+              <h3 className="text-lg font-semibold text-gradient">Doogu 🤖</h3>
+              <p className="text-sm text-muted-foreground">Your friendly AI assistant - Ask me anything!</p>
             </div>
 
             {/* Messages */}
@@ -289,7 +351,7 @@ Provide clear, concise directions on how to find the requested content. Be frien
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyPress={handleKeyPress}
-                  placeholder="Ask about sections or content..."
+                  placeholder="Ask Doogu anything..."
                   className="flex-1 px-4 py-2 rounded-lg bg-background border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 text-sm"
                   disabled={isLoading}
                 />
@@ -308,7 +370,7 @@ Provide clear, concise directions on how to find the requested content. Be frien
                 </motion.button>
               </div>
               <p className="text-xs text-muted-foreground mt-2 text-center">
-                Try: "Where is the study section?" or "Where is Piyush Garg video?"
+                Try: "What's the news today?" or "Where is HackerRank?" or ask me anything!
               </p>
             </div>
           </motion.div>
